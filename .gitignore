@@ -1,3 +1,20 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+.env.production.local
+
+# Dependencies
+node_modules
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
 # Logs
 logs
 *.log
@@ -7,12 +24,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# IDE and editor files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +34,25 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.sublime-project
+.sublime-workspace
+
+# MCP configuration (may contain local secrets)
+.mcp.json
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+
+# Test coverage
+coverage
+.nyc_output
+
+# Local development
+.cache
+.turbo

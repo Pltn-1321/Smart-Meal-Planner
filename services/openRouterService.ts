@@ -1,12 +1,47 @@
-import { GoogleGenAI } from "@google/genai";
 import { WeeklyPlanData, UserPreferences, DayPlan, Recipe } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "mistralai/ministral-8b"; // More reliable free model
+
+const makeOpenRouterRequest = async (systemMessage: string, userMessage: string, temperature: number = 0.7) => {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey || apiKey === 'your_openrouter_api_key_here') {
+    throw new Error("OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env.local with your actual API key from https://openrouter.ai/keys");
+  }
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "HTTP-Referer": "Smart-Meal-Planner",
+      "X-Title": "Smart Meal Planner",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage }
+      ],
+      response_format: { type: "json_object" },
+      temperature
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}. ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0]?.message?.content || data.choices[0]?.text;
+};
 
 export const generateWeeklyPlan = async (prefs: UserPreferences): Promise<WeeklyPlanData> => {
   try {
     const systemInstruction = `
-      You are a nutritionist and budget optimization expert living in ${prefs.location}. 
+      You are a nutritionist and budget optimization expert living in ${prefs.location}.
       Your mission is to create a weekly meal plan for ${prefs.peopleCount} people.
 
       USER PREFERENCES:
@@ -15,7 +50,7 @@ export const generateWeeklyPlan = async (prefs: UserPreferences): Promise<Weekly
       - Cuisine Style: ${prefs.cuisine || "Local & Modern European Mix"}.
       - Kitchen Equipment Available: ${prefs.equipment.join(', ')}.
       - Dietary Restrictions/Dislikes: ${prefs.restrictions || "None"}.
-      
+
       MEAL STRUCTURE:
       - Morning: Light and healthy.
       - Noon: Quick snack or leftovers.
@@ -46,8 +81,8 @@ export const generateWeeklyPlan = async (prefs: UserPreferences): Promise<Weekly
     const prompt = `
       Create a meal plan for the upcoming week based on the system instructions.
       Target Audience: ${prefs.peopleCount} people.
-      
-      Additional Context / Leftovers from previous week: 
+
+      Additional Context / Leftovers from previous week:
       "${prefs.context || "No specific leftovers."}"
 
       Important:
@@ -58,18 +93,8 @@ export const generateWeeklyPlan = async (prefs: UserPreferences): Promise<Weekly
       5. Respond entirely in ENGLISH.
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.7,
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No response from Gemini");
+    const text = await makeOpenRouterRequest(systemInstruction, prompt, 0.7);
+    if (!text) throw new Error("No response from OpenRouter");
 
     return JSON.parse(text) as WeeklyPlanData;
   } catch (error) {
@@ -81,14 +106,14 @@ export const generateWeeklyPlan = async (prefs: UserPreferences): Promise<Weekly
 export const regenerateDayPlan = async (prefs: UserPreferences, day: string): Promise<{ dayPlan: DayPlan, recipe: Recipe }> => {
   try {
     const systemInstruction = `
-      You are a nutritionist expert in ${prefs.location}. 
+      You are a nutritionist expert in ${prefs.location}.
       Regenerate the meal plan for ONE specific day (${day}) for ${prefs.peopleCount} people.
-      
+
       PREFERENCES:
       - Cuisine Style: ${prefs.cuisine || "General"}.
       - Restrictions: ${prefs.restrictions || "None"}.
       - Equipment: ${prefs.equipment.join(', ')}.
-      
+
       OUTPUT JSON:
       {
         "dayPlan": { "day": "${day}", "breakfast": "...", "lunch": "...", "dinner": "...", "dinnerRecipeId": "${day.toLowerCase().substring(0,3)}-dinner" },
@@ -102,18 +127,8 @@ export const regenerateDayPlan = async (prefs: UserPreferences, day: string): Pr
       Make it strictly fit the ${prefs.cuisine} style.
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.85, // Higher temperature for fresh ideas
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No response from Gemini");
+    const text = await makeOpenRouterRequest(systemInstruction, prompt, 0.85); // Higher temperature for fresh ideas
+    if (!text) throw new Error("No response from OpenRouter");
 
     return JSON.parse(text) as { dayPlan: DayPlan, recipe: Recipe };
   } catch (error) {

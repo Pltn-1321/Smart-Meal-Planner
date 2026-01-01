@@ -1,18 +1,25 @@
 import React from 'react';
 import { Recipe } from '../types';
-import { X, Clock, Flame, Printer } from 'lucide-react';
+import { X, Clock, Flame, Printer, Save } from 'lucide-react';
 import { printRecipe } from '../services/exportService';
 
 interface RecipeModalProps {
   recipe: Recipe | null;
   onClose: () => void;
+  onSaveRecipe?: (recipe: Recipe) => void;
 }
 
-export const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose }) => {
+export const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSaveRecipe }) => {
   if (!recipe) return null;
 
   const handlePrint = () => {
     printRecipe(recipe);
+  };
+
+  const handleSave = () => {
+    if (onSaveRecipe) {
+      onSaveRecipe(recipe);
+    }
   };
 
   return (
@@ -21,13 +28,24 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose }) => 
         <div className="sticky top-0 bg-white border-b border-stone-100 p-4 flex justify-between items-center z-10">
           <div className="flex items-center gap-3">
               <h2 className="text-xl font-bold text-stone-900 line-clamp-1">{recipe.name}</h2>
-              <button 
-                onClick={handlePrint}
-                className="p-1.5 text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                title="Print Recipe PDF"
-              >
-                  <Printer className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {onSaveRecipe && (
+                  <button
+                    onClick={handleSave}
+                    className="p-1.5 text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                    title="Save Recipe"
+                  >
+                    <Save className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  onClick={handlePrint}
+                  className="p-1.5 text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                  title="Print Recipe PDF"
+                >
+                    <Printer className="w-5 h-5" />
+                </button>
+              </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full transition-colors">
             <X className="w-6 h-6 text-stone-500" />
