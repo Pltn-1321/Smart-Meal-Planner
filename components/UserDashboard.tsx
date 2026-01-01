@@ -255,9 +255,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
   const handleSignOut = async () => {
     try {
       await onSignOut();
-      showToast('success', 'Signed out successfully');
-    } catch (error) {
-      showToast('error', 'Failed to sign out. Please try again.');
+      // Success - auth state listener will handle redirect to landing page
+    } catch (error: any) {
+      showToast('error', error?.message || 'Failed to sign out. Please try again.');
       console.error('Sign out error:', error);
     }
   };
