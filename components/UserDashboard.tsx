@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { WeeklyPlanData, UserPreferences, Recipe, ShoppingListCategory, DayPlan } from '../types';
 import { generateWeeklyPlan, regenerateDayPlan } from '../services/openRouterService';
 import { generateMarkdown, printDayPlan } from '../services/exportService';
@@ -11,6 +11,10 @@ import { ShoppingListView } from './ShoppingListView';
 import { BatchCookingView } from './BatchCookingView';
 import { RecipeModal } from './RecipeModal';
 import { SavedPlansModal } from './SavedPlansModal';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { SaveListModal } from './SaveListModal';
+import { SearchFilterBar } from './SearchFilterBar';
+import { useToast } from '../contexts/ToastContext';
 import { FolderOpen, Copy, Check, RefreshCw, Save, UtensilsCrossed, ShoppingCart, Settings, Plus, Trash2, Calendar, Clock, Users } from 'lucide-react';
 
 type TabType = 'new-plan' | 'my-recipes' | 'my-lists' | 'settings';
@@ -20,6 +24,7 @@ interface UserDashboardProps {
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('new-plan');
 
   // New Plan tab state
@@ -32,15 +37,28 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
   const [copied, setCopied] = useState(false);
   const [savedPlansModalOpen, setSavedPlansModalOpen] = useState(false);
 
+  // Modal states
+  const [showSaveListModal, setShowSaveListModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'recipe' | 'list';
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // My Recipes tab state
   const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
   const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
+  const [recipeSortBy, setRecipeSortBy] = useState<'date' | 'name'>('date');
 
   // My Lists tab state
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [loadingLists, setLoadingLists] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+  const [listSearchTerm, setListSearchTerm] = useState('');
+  const [listSortBy, setListSortBy] = useState<'date' | 'name'>('date');
 
   // Load saved recipes
   const loadSavedRecipes = async () => {
@@ -168,57 +186,70 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
       const result = await RecipeStorageService.saveRecipe(recipe);
       if (result.success) {
         await loadSavedRecipes();
-        alert('Recipe saved successfully!');
+        showToast('success', 'Recipe saved successfully!');
       } else {
-        alert('Failed to save recipe: ' + result.error);
+        showToast('error', 'Failed to save recipe: ' + result.error);
       }
     } catch (err) {
-      alert('Failed to save recipe');
+      showToast('error', 'Failed to save recipe');
     }
   };
 
-  const handleDeleteRecipe = async (recipeId: string) => {
-    if (!confirm('Are you sure you want to delete this recipe?')) return;
+  const handleDeleteRecipe = async (recipeId: string, recipeName: string) => {
+    setDeleteConfirm({ type: 'recipe', id: recipeId, name: recipeName });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
 
     try {
-      const result = await RecipeStorageService.deleteRecipe(recipeId);
-      if (result.success) {
-        await loadSavedRecipes();
-      } else {
-        alert('Failed to delete recipe: ' + result.error);
+      setIsDeleting(true);
+
+      if (deleteConfirm.type === 'recipe') {
+        const result = await RecipeStorageService.deleteRecipe(deleteConfirm.id);
+        if (result.success) {
+          await loadSavedRecipes();
+          showToast('success', 'Recipe deleted successfully');
+        } else {
+          showToast('error', 'Failed to delete recipe: ' + result.error);
+        }
+      } else if (deleteConfirm.type === 'list') {
+        const result = await ListStorageService.deleteList(deleteConfirm.id);
+        if (result.success) {
+          await loadSavedLists();
+          showToast('success', 'List deleted successfully');
+        } else {
+          showToast('error', 'Failed to delete list: ' + result.error);
+        }
       }
+
+      setDeleteConfirm(null);
     } catch (err) {
-      alert('Failed to delete recipe');
+      showToast('error', `Failed to delete ${deleteConfirm.type}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const handleSaveList = async (name: string, list: ShoppingListCategory[]) => {
+  const handleSaveList = async (name: string) => {
+    if (!planData) return;
+
     try {
-      const result = await ListStorageService.saveList(name, list);
+      const result = await ListStorageService.saveList(name, planData.shoppingList);
       if (result.success) {
         await loadSavedLists();
-        alert('Shopping list saved successfully!');
+        showToast('success', 'Shopping list saved successfully!');
+        setShowSaveListModal(false);
       } else {
-        alert('Failed to save list: ' + result.error);
+        showToast('error', 'Failed to save list: ' + result.error);
       }
     } catch (err) {
-      alert('Failed to save shopping list');
+      showToast('error', 'Failed to save shopping list');
     }
   };
 
-  const handleDeleteList = async (listId: string) => {
-    if (!confirm('Are you sure you want to delete this list?')) return;
-
-    try {
-      const result = await ListStorageService.deleteList(listId);
-      if (result.success) {
-        await loadSavedLists();
-      } else {
-        alert('Failed to delete list: ' + result.error);
-      }
-    } catch (err) {
-      alert('Failed to delete list');
-    }
+  const handleDeleteList = async (listId: string, listName: string) => {
+    setDeleteConfirm({ type: 'list', id: listId, name: listName });
   };
 
   const formatDate = (dateString: string) => {
@@ -230,6 +261,34 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
       minute: '2-digit'
     });
   };
+
+  // Filtered and sorted recipes
+  const filteredRecipes = useMemo(() => {
+    return savedRecipes
+      .filter((r) =>
+        r.recipe.name.toLowerCase().includes(recipeSearchTerm.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (recipeSortBy === 'date') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return a.recipe.name.localeCompare(b.recipe.name);
+      });
+  }, [savedRecipes, recipeSearchTerm, recipeSortBy]);
+
+  // Filtered and sorted lists
+  const filteredLists = useMemo(() => {
+    return savedLists
+      .filter((l) =>
+        l.name.toLowerCase().includes(listSearchTerm.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (listSortBy === 'date') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [savedLists, listSearchTerm, listSortBy]);
 
   const tabs = [
     { id: 'new-plan' as TabType, label: 'New Plan', icon: Plus },
@@ -355,24 +414,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                             Regenerate
                         </button>
                         <button
-                            onClick={() => {
-                              if (planData && confirm('Save this plan?')) {
-                                const planName = prompt('Enter plan name:');
-                                if (planName && currentPrefs) {
-                                  PlanStorageService.savePlan(planName, currentPrefs, planData).then(result => {
-                                    if (result.success) {
-                                      alert('Plan saved successfully!');
-                                    } else {
-                                      alert('Failed to save plan: ' + result.error);
-                                    }
-                                  });
-                                }
-                              }
-                            }}
+                            onClick={() => setSavedPlansModalOpen(true)}
                             className="bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all backdrop-blur-sm border border-white/10 flex items-center"
                         >
                             <Save className="w-4 h-4 mr-2" />
-                            Quick Save
+                            Save Plan
                         </button>
                         <button
                             onClick={() => setPlanData(null)}
@@ -410,14 +456,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                      <ShoppingListView lists={planData.shoppingList} budget={planData.budgetEstimate} />
                      <div className="mt-4 flex justify-center">
                        <button
-                         onClick={() => {
-                           if (planData && planData.shoppingList.length > 0 && confirm('Save this shopping list?')) {
-                             const listName = prompt('Enter list name:');
-                             if (listName) {
-                               handleSaveList(listName, planData.shoppingList);
-                             }
-                           }
-                         }}
+                         onClick={() => setShowSaveListModal(true)}
                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                        >
                          <Save className="w-4 h-4" />
@@ -456,13 +495,34 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                 <p className="text-stone-500">Recipes you save from meal plans will appear here.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {savedRecipes.map((savedRecipe) => (
+              <>
+                <SearchFilterBar
+                  searchTerm={recipeSearchTerm}
+                  onSearchChange={setRecipeSearchTerm}
+                  sortBy={recipeSortBy}
+                  onSortChange={setRecipeSortBy}
+                  onClearFilters={() => {
+                    setRecipeSearchTerm('');
+                    setRecipeSortBy('date');
+                  }}
+                  placeholder="Search recipes..."
+                  resultCount={filteredRecipes.length}
+                />
+
+                {filteredRecipes.length === 0 ? (
+                  <div className="text-center py-12">
+                    <UtensilsCrossed className="w-16 h-16 text-stone-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-stone-700 mb-2">No recipes found</h3>
+                    <p className="text-stone-500">Try adjusting your search or filters.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredRecipes.map((savedRecipe) => (
                   <div key={savedRecipe.id} className="bg-white border border-stone-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="font-semibold text-stone-900 text-lg">{savedRecipe.recipe.name}</h3>
                       <button
-                        onClick={() => handleDeleteRecipe(savedRecipe.id)}
+                        onClick={() => handleDeleteRecipe(savedRecipe.id, savedRecipe.recipe.name)}
                         className="text-red-500 hover:text-red-700 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -489,7 +549,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                     </div>
                   </div>
                 ))}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -518,8 +580,29 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                 <p className="text-stone-500">Shopping lists you save will appear here.</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {savedLists.map((savedList) => (
+              <>
+                <SearchFilterBar
+                  searchTerm={listSearchTerm}
+                  onSearchChange={setListSearchTerm}
+                  sortBy={listSortBy}
+                  onSortChange={setListSortBy}
+                  onClearFilters={() => {
+                    setListSearchTerm('');
+                    setListSortBy('date');
+                  }}
+                  placeholder="Search lists..."
+                  resultCount={filteredLists.length}
+                />
+
+                {filteredLists.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ShoppingCart className="w-16 h-16 text-stone-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-stone-700 mb-2">No lists found</h3>
+                    <p className="text-stone-500">Try adjusting your search or filters.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {filteredLists.map((savedList) => (
                   <div key={savedList.id} className="bg-white border border-stone-200 rounded-lg p-6">
                     <div className="flex justify-between items-start mb-6">
                       <div>
@@ -527,7 +610,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                         <p className="text-sm text-stone-500">Saved {formatDate(savedList.created_at)}</p>
                       </div>
                       <button
-                        onClick={() => handleDeleteList(savedList.id)}
+                        onClick={() => handleDeleteList(savedList.id, savedList.name)}
                         className="text-red-500 hover:text-red-700 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -554,7 +637,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
                     </div>
                   </div>
                 ))}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -583,6 +668,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
         onSavePlan={(name) => console.log('Plan saved:', name)}
         currentPlanData={planData}
         currentPreferences={currentPrefs}
+      />
+
+      {planData && (
+        <SaveListModal
+          isOpen={showSaveListModal}
+          onClose={() => setShowSaveListModal(false)}
+          onSave={handleSaveList}
+          shoppingList={planData.shoppingList}
+        />
+      )}
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title={`Delete ${deleteConfirm?.type === 'recipe' ? 'Recipe' : 'List'}?`}
+        message={`Are you sure you want to delete this ${deleteConfirm?.type}? This action cannot be undone.`}
+        itemName={deleteConfirm?.name}
+        isDeleting={isDeleting}
       />
     </div>
   );

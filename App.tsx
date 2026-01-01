@@ -12,6 +12,7 @@ import { SavedPlansModal } from './components/SavedPlansModal';
 import { LandingPage } from './components/landing/LandingPage';
 import { UserDashboard } from './components/UserDashboard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { UtensilsCrossed, RefreshCw, Copy, Check, User, LogOut, FolderOpen } from 'lucide-react';
 
 export function AppWithAuth() {
@@ -51,9 +52,11 @@ export function AppWithAuth() {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppWithAuth />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AppWithAuth />
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 
