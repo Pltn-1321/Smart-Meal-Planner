@@ -252,6 +252,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
     setDeleteConfirm({ type: 'list', id: listId, name: listName });
   };
 
+  const handleSignOut = async () => {
+    try {
+      await onSignOut();
+      showToast('success', 'Signed out successfully');
+    } catch (error) {
+      showToast('error', 'Failed to sign out. Please try again.');
+      console.error('Sign out error:', error);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -316,7 +326,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
             </div>
 
             <button
-              onClick={onSignOut}
+              onClick={handleSignOut}
               className="flex items-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-lg transition-colors"
             >
               Sign Out
