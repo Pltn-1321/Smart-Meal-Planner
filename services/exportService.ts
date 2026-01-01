@@ -140,14 +140,14 @@ export const printShoppingList = (lists: ShoppingListCategory[], budget: string)
   const content = `
     <h1>🛒 Shopping List</h1>
     <div class="meta"><strong>Estimated Budget:</strong> ${budget}</div>
-    
+
     ${lists.map(cat => `
       <h2>📍 ${cat.location}</h2>
       <ul>
         ${cat.items.map(item => `
           <li>
             <span class="checkbox"></span>
-            <strong>${item.item}</strong> 
+            <strong>${item.item}</strong>
             <span style="color: #57534e;">(${item.quantity})</span>
           </li>
         `).join('')}
@@ -155,4 +155,120 @@ export const printShoppingList = (lists: ShoppingListCategory[], budget: string)
     `).join('')}
   `;
   openPrintWindow('Shopping List', content);
+};
+
+// --- CSV & JSON Export ---
+
+// Helper function to download files
+const downloadFile = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// Export shopping list as CSV
+export const exportShoppingListToCSV = (lists: ShoppingListCategory[], name: string = 'shopping-list') => {
+  const date = new Date().toISOString().split('T')[0];
+  const filename = `${name}-${date}.csv`;
+
+  // CSV Header
+  let csv = 'Category,Item,Quantity,Notes\n';
+
+  // Add rows
+  lists.forEach(category => {
+    category.items.forEach(item => {
+      const row = [
+        `"${category.location}"`,
+        `"${item.item}"`,
+        `"${item.quantity}"`,
+        `"${item.notes || ''}"`
+      ].join(',');
+      csv += row + '\n';
+    });
+  });
+
+  downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+};
+
+// Export plan to JSON
+export const exportPlanToJSON = (
+  planData: WeeklyPlanData,
+  preferences: UserPreferences | null,
+  name: string = 'meal-plan'
+) => {
+  const date = new Date().toISOString().split('T')[0];
+  const filename = `${name}-${date}.json`;
+
+  const exportData = {
+    metadata: {
+      exportDate: new Date().toISOString(),
+      appVersion: '1.0.0',
+      planName: name,
+    },
+    preferences,
+    plan: planData,
+  };
+
+  const json = JSON.stringify(exportData, null, 2);
+  downloadFile(json, filename, 'application/json');
+};
+
+// Export single recipe to JSON
+export const exportRecipeToJSON = (recipe: Recipe, name?: string) => {
+  const date = new Date().toISOString().split('T')[0];
+  const recipeName = name || recipe.name.toLowerCase().replace(/\s+/g, '-');
+  const filename = `recipe-${recipeName}-${date}.json`;
+
+  const exportData = {
+    metadata: {
+      exportDate: new Date().toISOString(),
+      appVersion: '1.0.0',
+    },
+    recipe,
+  };
+
+  const json = JSON.stringify(exportData, null, 2);
+  downloadFile(json, filename, 'application/json');
+};
+
+// Export multiple recipes to JSON
+export const exportMultipleRecipesToJSON = (recipes: Recipe[], name: string = 'recipes') => {
+  const date = new Date().toISOString().split('T')[0];
+  const filename = `${name}-${date}.json`;
+
+  const exportData = {
+    metadata: {
+      exportDate: new Date().toISOString(),
+      appVersion: '1.0.0',
+      recipeCount: recipes.length,
+    },
+    recipes,
+  };
+
+  const json = JSON.stringify(exportData, null, 2);
+  downloadFile(json, filename, 'application/json');
+};
+
+// Export shopping list to JSON
+export const exportListToJSON = (list: ShoppingListCategory[], name: string = 'shopping-list') => {
+  const date = new Date().toISOString().split('T')[0];
+  const filename = `${name}-${date}.json`;
+
+  const exportData = {
+    metadata: {
+      exportDate: new Date().toISOString(),
+      appVersion: '1.0.0',
+      name,
+    },
+    shoppingList: list,
+  };
+
+  const json = JSON.stringify(exportData, null, 2);
+  downloadFile(json, filename, 'application/json');
 };
