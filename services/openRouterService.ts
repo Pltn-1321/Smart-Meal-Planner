@@ -59,23 +59,80 @@ export const generateWeeklyPlan = async (prefs: UserPreferences): Promise<Weekly
       OUTPUT FORMAT (JSON ONLY):
       You must return a valid JSON object following exactly this structure, without markdown:
       {
+        "metadata": {
+          "suggestedName": "Catchy plan name (e.g., 'Italian Week - 50€', 'Budget Student French')",
+          "cuisine": "${prefs.cuisine || 'Mixed'}",
+          "difficulty": "easy|medium|hard",
+          "totalBudget": ${parseFloat(prefs.budget) || 0},
+          "currency": "${prefs.currency}",
+          "peopleCount": ${prefs.peopleCount},
+          "tags": ["tag1", "tag2", "tag3"]
+        },
         "weekPlan": [
           { "day": "Monday", "breakfast": "...", "lunch": "...", "dinner": "...", "dinnerRecipeId": "mon-dinner" },
           ... until Sunday
         ],
         "shoppingList": [
-          { "location": "Local Market", "items": [{ "item": "...", "quantity": "..." }] },
-          { "location": "Supermarket", "items": [{ "item": "...", "quantity": "..." }] }
+          {
+            "location": "Local Market",
+            "items": [
+              {
+                "id": "item-1",
+                "item": "Tomatoes",
+                "quantity": "1kg",
+                "estimatedPrice": 3.50,
+                "category": "vegetables"
+              }
+            ],
+            "totalEstimated": 15.50
+          }
         ],
         "batchCooking": [
           { "step": 1, "instruction": "...", "timeEstimate": "..." }
         ],
         "recipes": [
-          { "id": "mon-dinner", "name": "...", "prepTime": "...", "ingredients": ["..."], "instructions": ["..."], "tips": "..." }
-          ... a detailed recipe for each dinner of the week. Ensure ingredient quantities are sufficient for ${prefs.peopleCount} people.
+          {
+            "id": "mon-dinner",
+            "name": "...",
+            "prepTime": "20 min",
+            "cookTime": "30 min",
+            "servings": ${prefs.peopleCount},
+            "difficulty": "easy|medium|hard",
+            "ingredients": [
+              {
+                "id": "ing-1",
+                "name": "Tomatoes",
+                "quantity": "500",
+                "unit": "g",
+                "optional": false
+              }
+            ],
+            "instructions": ["..."],
+            "tips": "...",
+            "tags": ["cuisine-type", "diet-type"],
+            "nutrition": {
+              "calories": 450,
+              "protein": 20,
+              "carbs": 50,
+              "fat": 15
+            }
+          }
+          ... a detailed recipe for each dinner of the week.
         ],
-        "budgetEstimate": "XXX ${prefs.currency}"
+        "budgetEstimate": "${prefs.budget} ${prefs.currency}"
       }
+
+      CRITICAL REQUIREMENTS:
+      1. Generate unique sequential IDs for shopping list items (item-1, item-2, etc.)
+      2. Generate unique sequential IDs for recipe ingredients (ing-1, ing-2, etc.)
+      3. Provide realistic price estimates based on ${prefs.location} market prices in ${prefs.currency}
+      4. Ensure total shopping list price stays within budget
+      5. Add 3-5 relevant tags: cuisine, dietary, characteristics (e.g., ["italian", "vegetarian", "budget-friendly", "quick"])
+      6. Calculate approximate nutrition per serving (calories, protein/carbs/fat in g)
+      7. Suggest a catchy plan name with cuisine and budget
+      8. Use proper units: g, kg, ml, l, pcs, tbsp, tsp, cup
+      9. Estimate cooking time separately from prep time
+      10. Determine overall difficulty based on recipe complexity
     `;
 
     const prompt = `
@@ -117,9 +174,34 @@ export const regenerateDayPlan = async (prefs: UserPreferences, day: string): Pr
       OUTPUT JSON:
       {
         "dayPlan": { "day": "${day}", "breakfast": "...", "lunch": "...", "dinner": "...", "dinnerRecipeId": "${day.toLowerCase().substring(0,3)}-dinner" },
-        "recipe": { "id": "${day.toLowerCase().substring(0,3)}-dinner", "name": "...", "prepTime": "...", "ingredients": ["..."], "instructions": ["..."], "tips": "..." }
+        "recipe": {
+          "id": "${day.toLowerCase().substring(0,3)}-dinner",
+          "name": "...",
+          "prepTime": "20 min",
+          "cookTime": "30 min",
+          "servings": ${prefs.peopleCount},
+          "difficulty": "easy|medium|hard",
+          "ingredients": [
+            {
+              "id": "ing-1",
+              "name": "ingredient name",
+              "quantity": "amount",
+              "unit": "g|ml|pcs|...",
+              "optional": false
+            }
+          ],
+          "instructions": ["..."],
+          "tips": "...",
+          "tags": ["cuisine-type", "characteristic"],
+          "nutrition": {
+            "calories": 450,
+            "protein": 20,
+            "carbs": 50,
+            "fat": 15
+          }
+        }
       }
-      Ensure recipe ingredients are scaled for ${prefs.peopleCount} people.
+      Ensure recipe ingredients are scaled for ${prefs.peopleCount} people and include enriched metadata.
     `;
 
     const prompt = `

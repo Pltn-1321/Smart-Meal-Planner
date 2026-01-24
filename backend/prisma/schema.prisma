@@ -67,35 +67,57 @@ model UserPreference {
 
 // Table des plans de repas
 model SavedPlan {
-  id             String   @id @default(uuid())
-  userId         String   @map("user_id")
-  name           String
-  preferences    Json     // UserPreferences spécifiques au plan
-  weekPlan       Json     @map("week_plan")
-  recipes        Json     // Array de recettes
-  batchCooking   Json     @map("batch_cooking") // Array de batch cooking
-  budgetEstimate String   @map("budget_estimate")
-  shoppingList   Json     @map("shopping_list") // Array d'items
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  name             String
+  preferences      Json      // UserPreferences spécifiques au plan
+  weekPlan         Json      @map("week_plan")
+  recipes          Json      // Array de recettes
+  batchCooking     Json      @map("batch_cooking") // Array de batch cooking
+  budgetEstimate   String    @map("budget_estimate")
+  shoppingList     Json      @map("shopping_list") // Array d'items
+
+  // Nouveaux champs pour métadonnées enrichies
+  shoppingListId   String?   @map("shopping_list_id") // Lien vers SavedList
+  tags             String[]  @default([])
+  cuisine          String?
+  difficulty       String?   // 'easy', 'medium', 'hard'
+  totalBudget      Decimal?  @map("total_budget") @db.Decimal(10, 2)
+  weekStartDate    DateTime? @map("week_start_date") @db.Date
+
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  savedRecipes  SavedRecipe[]
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedRecipes   SavedRecipe[]
+  linkedList     SavedList?    @relation("PlanShoppingList", fields: [shoppingListId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([updatedAt(sort: Desc)])
+  @@index([cuisine])
+  @@index([difficulty])
+  @@index([totalBudget])
+  @@index([weekStartDate])
   @@map("saved_plans")
 }
 
 // Table des recettes individuelles
 model SavedRecipe {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  planId    String?  @map("plan_id") // Optionnel, lien vers un plan
-  recipe    Json     // Objet Recipe complet
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  planId     String?  @map("plan_id") // Optionnel, lien vers un plan
+  recipe     Json     // Objet Recipe complet
+
+  // Nouveaux champs pour métadonnées enrichies
+  difficulty String?  // 'easy', 'medium', 'hard'
+  cookTime   String?  @map("cook_time")
+  servings   Int?
+  tags       String[] @default([])
+  nutrition  Json?    // Objet NutritionInfo
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
   user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -104,22 +126,31 @@ model SavedRecipe {
   @@index([userId])
   @@index([planId])
   @@index([createdAt(sort: Desc)])
+  @@index([difficulty])
   @@map("saved_recipes")
 }
 
 // Table des listes de courses
 model SavedList {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  name      String
-  list      Json     // Array d'items de la liste
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid())
+  userId               String    @map("user_id")
+  name                 String
+  list                 Json      // Array d'items de la liste
+
+  // Nouveaux champs pour métadonnées enrichies
+  planId               String?   @map("plan_id") // Lien vers le plan d'origine
+  isEditable           Boolean   @default(true) @map("is_editable")
+  totalEstimatedPrice  Decimal?  @map("total_estimated_price") @db.Decimal(10, 2)
+
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedPlans SavedPlan[] @relation("PlanShoppingList")
 
   @@index([userId])
+  @@index([planId])
   @@index([createdAt(sort: Desc)])
   @@map("saved_lists")
 }
