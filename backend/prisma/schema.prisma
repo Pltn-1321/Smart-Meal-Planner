@@ -1,0 +1,125 @@
+// Prisma schema pour Smart Meal Planner
+// Base de données: Neon Postgres
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Pour les migrations (sans pooling)
+}
+
+// Table des utilisateurs (remplace auth.users de Supabase)
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Hashé avec bcrypt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  plans       SavedPlan[]
+  recipes     SavedRecipe[]
+  lists       SavedList[]
+  preferences UserPreference?
+  tokens      RefreshToken[]
+
+  @@map("users")
+}
+
+// Table pour les refresh tokens JWT
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// Table des préférences utilisateur
+model UserPreference {
+  id                  String   @id @default(uuid())
+  userId              String   @unique @map("user_id")
+  dietaryRestrictions String[] @map("dietary_restrictions")
+  cuisinePreferences  String[] @map("cuisine_preferences")
+  budgetPerDay        Decimal? @map("budget_per_day") @db.Decimal(10, 2)
+  peopleCount         Int      @default(4) @map("people_count")
+  location            String?
+  currency            String   @default("USD")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_preferences")
+}
+
+// Table des plans de repas
+model SavedPlan {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  name           String
+  preferences    Json     // UserPreferences spécifiques au plan
+  weekPlan       Json     @map("week_plan")
+  recipes        Json     // Array de recettes
+  batchCooking   Json     @map("batch_cooking") // Array de batch cooking
+  budgetEstimate String   @map("budget_estimate")
+  shoppingList   Json     @map("shopping_list") // Array d'items
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedRecipes  SavedRecipe[]
+
+  @@index([userId])
+  @@index([updatedAt(sort: Desc)])
+  @@map("saved_plans")
+}
+
+// Table des recettes individuelles
+model SavedRecipe {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  planId    String?  @map("plan_id") // Optionnel, lien vers un plan
+  recipe    Json     // Objet Recipe complet
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SavedPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+  @@index([createdAt(sort: Desc)])
+  @@map("saved_recipes")
+}
+
+// Table des listes de courses
+model SavedList {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  list      Json     // Array d'items de la liste
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("saved_lists")
+}
